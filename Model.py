@@ -15,6 +15,8 @@ class Model:
         self.observer = window
         self.player = 0
         self.is_hidden = True # Dealer first card hidden?
+        self.cash = 100
+        self.bet = 25
 
     def create_deck(self):
         for suit in self.suits:
@@ -24,6 +26,7 @@ class Model:
 
     def draw_card(self, hand):
         hand.append(self.deck[0])
+        self.observer.notify('Draw card')
         self.deck.pop(0)
 
     def dealer_card_choice(self):
@@ -35,13 +38,73 @@ class Model:
             self.observer.notify("Dealer thinking")
         self.end_game()
         print(self.dealerhand)
+        print(self.is_hidden)
+
+    def blackjack_check(self, hand):
+        if self.card_value_check(hand) == 21 and len(hand) == 2:
+            return True
+        return False
+
+    def blackjack_logic(self):  #Checks who has blackjack and if both then bets are returned and game over
+        if self.blackjack_check(self.dealerhand):
+            if self.blackjack_check(self.playerhand):
+                return 1
+            else:
+                return 2
+
+        if self.blackjack_check(self.playerhand):
+            if self.blackjack_check(self.dealerhand):
+                return 1
+            else:
+                return 2
+        return 0
+
+    def push(self):
+        Model.button_changer('stand')
+        Model.button_changer('hit')
+        self.is_hidden = False
+        self.cash += self.bet
+        self.bet = 0  #TODO Find better way to end game
+
+    @classmethod
+    def button_changer(cls, button):
+        Model.BUTTON_DICT[button] = not Model.BUTTON_DICT[button]  # Changes BUTTON_DICT values based on choice.
+
+    '''
+    def _player_or_dealer(func):
+        def wrapper(*args):
+            runner = func(*args)
+            print('Function: {0} ran with parameters: {1} giving result {2}.'.format(func.__name__, args, runner))
+            return runner
+        return wrapper
+    '''
+
+    # @_player_or_dealer
+    @staticmethod
+    def card_value_check(hand):
+        total = 0
+        num_of_aces = 0
+        for number in list(hand):
+            if number[0] == 'A':
+                num_of_aces += 1
+                total += 11
+
+            elif number[0] == 'J' or number[0] == 'Q' or number[0] == 'K':
+                total += 10
+
+            else:
+                total += int(number[0])
+        while num_of_aces > 0 and total > 21:
+            num_of_aces -= 1
+            total -= 10
+        return total
 
     def end_game(self):
         playerscore = self.card_value_check(self.playerhand)
         dealerscore = self.card_value_check(self.dealerhand)
         self.observer.notify("You have {}, Dealer has {}".format(playerscore, dealerscore))
 
-        if playerscore == 21:  # Blackjack
+        if self.blackjack_check(self.playerhand):  # Blackjack
             self.observer.notify('Blackjack, you win!')
             return 0
 
@@ -69,43 +132,10 @@ class Model:
             self.observer.notify('You lose')
             return 0
 
-    @classmethod
-    def button_changer(cls, button):
-        Model.BUTTON_DICT[button] = not Model.BUTTON_DICT[button] #Changes BUTTON_DICT values based on choice.
-
-    '''
-    def _player_or_dealer(func):
-        def wrapper(*args):
-            runner = func(*args)
-            print('Function: {0} ran with parameters: {1} giving result {2}.'.format(func.__name__, args, runner))
-            return runner
-        return wrapper
-    '''
-
-    #@_player_or_dealer
-    @staticmethod
-    def card_value_check(hand):
-        total = 0
-        num_of_aces = 0
-        for number in list(hand):
-            if number[0] == 'A':
-                num_of_aces += 1
-                total += 11
-
-            elif number[0] == 'J' or number[0] == 'Q' or number[0] == 'K':
-                total += 10
-
-            else:
-                total += int(number[0])
-        while num_of_aces > 0 and total > 21:
-            num_of_aces -= 1
-            total -= 10
-        return total
-
     def notify(self, choice=0):
         if choice == 'retry':
             #Model.button_changer('double')
-            if Model.BUTTON_DICT['stand'] == False and Model.BUTTON_DICT['hit'] == False:
+            if not Model.BUTTON_DICT['stand'] and not Model.BUTTON_DICT['hit']:
                 Model.button_changer('stand')
                 Model.button_changer('hit')
             self.deck = []
@@ -118,6 +148,14 @@ class Model:
             self.draw_card(self.playerhand)
             self.draw_card(self.dealerhand)
             self.draw_card(self.dealerhand)
+            if self.blackjack_logic() == 2: #One person with blackjack
+                Model.button_changer('stand')
+                Model.button_changer('hit')
+                self.is_hidden = False
+                self.end_game()
+            elif self.blackjack_logic() == 1: #Two people with blackjack
+                self.push()
+                self.end_game()
             self.player = 0
 
         # if self.playerhand[0][0] == self.playerhand[0][1]:
@@ -125,11 +163,7 @@ class Model:
 
         if self.player == 0:
             # Model.button_changer('double')
-            if self.card_value_check(self.playerhand) >= 21:
-                self.dealer_card_choice()
-                print("STUEBHEUHBE")
-
-            elif choice == 'split':
+            if choice == 'split':
                 pass
 
             elif choice == 'double':
@@ -140,12 +174,11 @@ class Model:
 
             elif choice == 'stand':
                 self.dealer_card_choice()
-                print("STUEBHEUHBE")
 
             elif choice == 'hit':
                 self.draw_card(self.playerhand)
                 if self.card_value_check(self.playerhand) > 21:
+                    self.observer.notify("Bust")
                     self.dealer_card_choice()
 
         self.observer.notify("")
-
