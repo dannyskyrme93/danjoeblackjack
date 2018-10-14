@@ -2,9 +2,9 @@ from random import shuffle
 from Notifiable import Notifiable
 import time
 
-class Model:
 
-    BUTTON_DICT = {'retry':True, 'hit':False, 'stand':False, 'split':False}
+class Model:
+    BUTTON_DICT = {'retry': True, 'hit': False, 'stand': False, 'split': False}
 
     def __init__(self, window: Notifiable):
         self.suits = ['C', 'D', 'S', 'H']
@@ -14,7 +14,7 @@ class Model:
         self.dealerhand = []
         self.observer = window
         self.player = 0
-        self.is_hidden = True # Dealer first card hidden?
+        self.is_hidden = True  # Dealer first card hidden?
         self.cash = 100
         self.bet = 25
 
@@ -37,34 +37,23 @@ class Model:
             self.draw_card(self.dealerhand)
             self.observer.notify("Dealer thinking")
         self.end_game()
-        print(self.dealerhand)
-        print(self.is_hidden)
 
     def blackjack_check(self, hand):
         if self.card_value_check(hand) == 21 and len(hand) == 2:
             return True
         return False
 
-    def blackjack_logic(self):  #Checks who has blackjack and if both then bets are returned and game over
-        if self.blackjack_check(self.dealerhand):
-            if self.blackjack_check(self.playerhand):
-                return 1
-            else:
-                return 2
 
-        if self.blackjack_check(self.playerhand):
-            if self.blackjack_check(self.dealerhand):
-                return 1
-            else:
-                return 2
-        return 0
+    def blackjack_logic(self):  #Checks who has blackjack and if both then bets are returned and game over
+        if self.blackjack_check(self.playerhand) or self.blackjack_check(self.dealerhand):
+            return True
+        else:
+            return False
+
 
     def push(self):
-        Model.button_changer('stand')
-        Model.button_changer('hit')
-        self.is_hidden = False
         self.cash += self.bet
-        self.bet = 0  #TODO Find better way to end game
+        self.bet = 0
 
     @classmethod
     def button_changer(cls, button):
@@ -104,7 +93,21 @@ class Model:
         dealerscore = self.card_value_check(self.dealerhand)
         self.observer.notify("You have {}, Dealer has {}".format(playerscore, dealerscore))
 
-        if self.blackjack_check(self.playerhand):  # Blackjack
+        if Model.BUTTON_DICT['stand'] and Model.BUTTON_DICT['hit']:# Change to hide buttons and flip card if
+            Model.button_changer('stand')                          # blackjack happens on first cards
+            Model.button_changer('hit')
+            self.is_hidden = False
+
+        if playerscore == dealerscore:
+            self.push()
+            self.observer.notify("Draw, bets pushed.")
+            return 0
+
+        elif self.blackjack_check(self.dealerhand):  # Blackjack
+            self.observer.notify('Blackjack, you lose!')
+            return 0
+
+        elif self.blackjack_check(self.playerhand):  # Blackjack
             self.observer.notify('Blackjack, you win!')
             return 0
 
@@ -134,7 +137,7 @@ class Model:
 
     def notify(self, choice=0):
         if choice == 'retry':
-            #Model.button_changer('double')
+            # Model.button_changer('double')
             if not Model.BUTTON_DICT['stand'] and not Model.BUTTON_DICT['hit']:
                 Model.button_changer('stand')
                 Model.button_changer('hit')
@@ -142,19 +145,14 @@ class Model:
             self.playerhand = []
             self.dealerhand = []
             self.is_hidden = True
-            self.observer.notify("cards dealt")
+
             self.create_deck()
             self.draw_card(self.playerhand)
             self.draw_card(self.playerhand)
             self.draw_card(self.dealerhand)
             self.draw_card(self.dealerhand)
-            if self.blackjack_logic() == 2: #One person with blackjack
-                Model.button_changer('stand')
-                Model.button_changer('hit')
-                self.is_hidden = False
-                self.end_game()
-            elif self.blackjack_logic() == 1: #Two people with blackjack
-                self.push()
+            self.observer.notify("cards dealt")
+            if self.blackjack_logic():  # One person with blackjack
                 self.end_game()
             self.player = 0
 
